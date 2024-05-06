@@ -1,173 +1,118 @@
-import { useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react'; // Import useNavigate untuk navigasi
 
-import Card from '@mui/material/Card';
-import Stack from '@mui/material/Stack';
-import Table from '@mui/material/Table';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
-import TableBody from '@mui/material/TableBody';
+import Grid from '@mui/material/Unstable_Grid2';
 import Typography from '@mui/material/Typography';
-import TableContainer from '@mui/material/TableContainer';
-import TablePagination from '@mui/material/TablePagination';
+import Pagination from '@mui/material/Pagination'; // Import Button
 
-import { users } from 'src/_mock/user';
+import UserTable from '../user-table'; // Import UserTable
 
-import Iconify from 'src/components/iconify';
-import Scrollbar from 'src/components/scrollbar';
+export default function UserView() {
+    const [customerServices, setCustomerServices] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    
+    // State for pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 4;
 
-import TableNoData from '../table-no-data';
-import UserTableRow from '../user-table-row';
-import UserTableHead from '../user-table-head';
-import TableEmptyRows from '../table-empty-rows';
-import UserTableToolbar from '../user-table-toolbar';
-import { emptyRows, applyFilter, getComparator } from '../utils';
+    // Menggunakan useNavigate untuk mengarahkan pengguna ke URL tertentu
+    const navigate = useNavigate();
 
-// ----------------------------------------------------------------------
+    useEffect(() => {
+        const fetchCustomerServices = async () => {
+            try {
+                const response = await axios.get('https://simobile.singapoly.com/api/trpl/customer-service');
+                setCustomerServices(response.data.datas);
+            } catch (err) {
+                setError(err);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-export default function UserPage() {
-  const [page, setPage] = useState(0);
+        fetchCustomerServices();
+    }, []);
 
-  const [order, setOrder] = useState('asc');
+    // Fungsi untuk menghapus data dengan konfirmasi
+    const deleteCustomerService = async (nim, idCustomerService) => {
+        if (window.confirm('Apakah Anda yakin ingin menghapus data ini?')) {
+            try {
+                await axios.delete(`https://simobile.singapoly.com/api/trpl/customer-service/${nim}/${idCustomerService}`);
+                // Setelah penghapusan berhasil, perbarui state dengan menghapus data yang dihapus
+                setCustomerServices((prevServices) =>
+                    prevServices.filter(
+                        (service) => service.nim !== nim || service.id_customer_service !== idCustomerService
+                    )
+                );
+            } catch (err) {
+                console.error('Error deleting customer service:', err);
+            }
+        }
+    };
 
-  const [selected, setSelected] = useState([]);
+    // Fungsi untuk menangani klik pada tombol "Create Issues"
+    const handleCreateIssuesClick = () => {
+        navigate('/blog'); // Mengarahkan ke '/blog'
+    };
 
-  const [orderBy, setOrderBy] = useState('name');
+    // Calculate the data to be displayed on the current page
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = customerServices.slice(indexOfFirstItem, indexOfLastItem);
 
-  const [filterName, setFilterName] = useState('');
+    const handlePageChange = (event, value) => {
+        setCurrentPage(value);
+    };
 
-  const [rowsPerPage, setRowsPerPage] = useState(5);
-
-  const handleSort = (event, id) => {
-    const isAsc = orderBy === id && order === 'asc';
-    if (id !== '') {
-      setOrder(isAsc ? 'desc' : 'asc');
-      setOrderBy(id);
+    if (loading) {
+        return <div>Loading...</div>;
     }
-  };
 
-  const handleSelectAllClick = (event) => {
-    if (event.target.checked) {
-      const newSelecteds = users.map((n) => n.name);
-      setSelected(newSelecteds);
-      return;
+    if (error) {
+        return <div>Error: {error.message}</div>;
     }
-    setSelected([]);
-  };
 
-  const handleClick = (event, name) => {
-    const selectedIndex = selected.indexOf(name);
-    let newSelected = [];
-    if (selectedIndex === -1) {
-      newSelected = newSelected.concat(selected, name);
-    } else if (selectedIndex === 0) {
-      newSelected = newSelected.concat(selected.slice(1));
-    } else if (selectedIndex === selected.length - 1) {
-      newSelected = newSelected.concat(selected.slice(0, -1));
-    } else if (selectedIndex > 0) {
-      newSelected = newSelected.concat(
-        selected.slice(0, selectedIndex),
-        selected.slice(selectedIndex + 1)
-      );
-    }
-    setSelected(newSelected);
-  };
+    return (
+        <Container maxWidth="xl">
+            <Typography variant="h4" sx={{ mb: 5 }}>
+                Menu Customer Service
+            </Typography>
 
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
+            {/* Tombol "Create Issues" */}
+            <Button
+                variant="contained"
+                color="primary"
+                onClick={handleCreateIssuesClick} // Fungsi handler pada klik
+                sx={{ marginBottom: 2 }}
+            >
+                Create Issues
+            </Button>
 
-  const handleChangeRowsPerPage = (event) => {
-    setPage(0);
-    setRowsPerPage(parseInt(event.target.value, 10));
-  };
-
-  const handleFilterByName = (event) => {
-    setPage(0);
-    setFilterName(event.target.value);
-  };
-
-  const dataFiltered = applyFilter({
-    inputData: users,
-    comparator: getComparator(order, orderBy),
-    filterName,
-  });
-
-  const notFound = !dataFiltered.length && !!filterName;
-
-  return (
-    <Container>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={5}>
-        <Typography variant="h4">Users</Typography>
-
-        <Button variant="contained" color="inherit" startIcon={<Iconify icon="eva:plus-fill" />}>
-          New User
-        </Button>
-      </Stack>
-
-      <Card>
-        <UserTableToolbar
-          numSelected={selected.length}
-          filterName={filterName}
-          onFilterName={handleFilterByName}
-        />
-
-        <Scrollbar>
-          <TableContainer sx={{ overflow: 'unset' }}>
-            <Table sx={{ minWidth: 800 }}>
-              <UserTableHead
-                order={order}
-                orderBy={orderBy}
-                rowCount={users.length}
-                numSelected={selected.length}
-                onRequestSort={handleSort}
-                onSelectAllClick={handleSelectAllClick}
-                headLabel={[
-                  { id: 'name', label: 'Name' },
-                  { id: 'company', label: 'Company' },
-                  { id: 'role', label: 'Role' },
-                  { id: 'isVerified', label: 'Verified', align: 'center' },
-                  { id: 'status', label: 'Status' },
-                  { id: '' },
-                ]}
-              />
-              <TableBody>
-                {dataFiltered
-                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  .map((row) => (
-                    <UserTableRow
-                      key={row.id}
-                      name={row.name}
-                      role={row.role}
-                      status={row.status}
-                      company={row.company}
-                      avatarUrl={row.avatarUrl}
-                      isVerified={row.isVerified}
-                      selected={selected.indexOf(row.name) !== -1}
-                      handleClick={(event) => handleClick(event, row.name)}
+            <Grid container spacing={3}>
+                <Grid xs={12} md={6} lg={12}>
+                    <UserTable
+                        title="List Customer Service"
+                        list={currentItems.map((service) => ({
+                            id: service.id_customer_service,
+                            nim: service.nim,
+                            titleIssues: service.title_issues,
+                            rating: service.rating,
+                        }))}
+                        onDelete={deleteCustomerService} // Berikan prop onDelete ke UserTable
                     />
-                  ))}
+                </Grid>
+            </Grid>
 
-                <TableEmptyRows
-                  height={77}
-                  emptyRows={emptyRows(page, rowsPerPage, users.length)}
-                />
-
-                {notFound && <TableNoData query={filterName} />}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Scrollbar>
-
-        <TablePagination
-          page={page}
-          component="div"
-          count={users.length}
-          rowsPerPage={rowsPerPage}
-          onPageChange={handleChangePage}
-          rowsPerPageOptions={[5, 10, 25]}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Card>
-    </Container>
-  );
+            <Pagination
+                count={Math.ceil(customerServices.length / itemsPerPage)}
+                page={currentPage}
+                onChange={handlePageChange}
+                sx={{ marginTop: 2 }}
+            />
+        </Container>
+    );
 }
